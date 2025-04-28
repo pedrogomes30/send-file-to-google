@@ -34,44 +34,41 @@ enviar_para_google_drive() {
     local remote_dest=$2
 
     echo "Enviando $zip_file para $remote_dest no Google Drive..." | tee -a "$LOG_FILE"
-    rclone copy "$zip_file" "$remote_dest" --drive-server-side-across-configs -v >> "$LOG_FILE" 2>&1
+    rclone copy "$zip_file" "$remote_dest" --drive-server-side-across-configs -v --update >> "$LOG_FILE" 2>&1
 
     echo "Removendo arquivo local $zip_file..." | tee -a "$LOG_FILE"
     rm -f "$zip_file"
 }
 
-compactar_e_enviar() {
+processar_mes() {
     local ano=$1
     local mes=$2
-    local cnpj=$3
-    local cnpj_path="$BASE_DIR/$ano/$mes/$cnpj"
-    local zip_file="/tmp/${cnpj}.zip"
+    local mes_path="$BASE_DIR/$ano/$mes"
     local remote_dest="$RCLONE_REMOTE:$REMOTE_PATH/$ano/$mes"
 
-    if [ -d "$cnpj_path" ]; then
-        compactar "$cnpj_path" "$zip_file"
-        
-        if [ -f "$zip_file" ]; then
-            echo "Arquivo compactado gerado com sucesso: $zip_file" | tee -a "$LOG_FILE"
-        else
-            echo "Falha ao gerar o arquivo compactado: $zip_file" | tee -a "$LOG_FILE"
-        fi
+    echo "Processando mês: $ano/$mes..." | tee -a "$LOG_FILE"
 
-        enviar_para_google_drive "$zip_file" "$remote_dest"
-    else
-        echo "Pasta $cnpj_path não encontrada, pulando..." | tee -a "$LOG_FILE"
-    fi
+    for cnpj in $(ls "$mes_path"); do
+        local cnpj_path="$mes_path/$cnpj"
+        local zip_file="/tmp/${ano}_${mes}_${cnpj}.zip"
+
+        if [ -d "$cnpj_path" ]; then
+            compactar "$cnpj_path" "$zip_file"
+        fi
+    done
+
+    for zip_file in /tmp/${ano}_${mes}_*.zip; do
+        if [ -f "$zip_file" ]; then
+            enviar_para_google_drive "$zip_file" "$remote_dest"
+        fi
+    done
 }
 
 for ano in $(ls "$BASE_DIR"); do
     if [ -d "$BASE_DIR/$ano" ]; then
         for mes in $(ls "$BASE_DIR/$ano"); do
             if [ -d "$BASE_DIR/$ano/$mes" ]; then
-                for cnpj in $(ls "$BASE_DIR/$ano/$mes"); do
-                    if [ -d "$BASE_DIR/$ano/$mes/$cnpj" ]; then
-                        compactar_e_enviar "$ano" "$mes" "$cnpj"
-                    fi
-                done
+                processar_mes "$ano" "$mes"
             fi
         done
     fi
