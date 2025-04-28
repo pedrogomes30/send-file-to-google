@@ -11,20 +11,20 @@ RCLONE_REMOTE="gdrive-sa"
 LOG_FILE="/var/log/rclone-woo-pdv.log"
 
 compactar() {
-    local cnpj_path=$1
+    local loja_path=$1
     local zip_file=$2
 
-    echo "Compactando o conteúdo de $cnpj_path para $zip_file..." | tee -a "$LOG_FILE"
+    echo "Compactando o conteúdo de $loja_path para $zip_file..." | tee -a "$LOG_FILE"
 
-    if [ -d "$cnpj_path" ]; then
-        if [ "$(ls -A "$cnpj_path")" ]; then
-            (cd "$cnpj_path" && zip -r "$zip_file" .) >> "$LOG_FILE" 2>&1
+    if [ -d "$loja_path" ]; then
+        if [ "$(ls -A "$loja_path")" ]; then
+            (cd "$loja_path" && zip -r "$zip_file" .) >> "$LOG_FILE" 2>&1
         else
-            echo "Diretório $cnpj_path está vazio. Nada para compactar." | tee -a "$LOG_FILE"
+            echo "Diretório $loja_path está vazio. Nada para compactar." | tee -a "$LOG_FILE"
             return 1
         fi
     else
-        echo "Diretório $cnpj_path não encontrado." | tee -a "$LOG_FILE"
+        echo "Diretório $loja_path não encontrado." | tee -a "$LOG_FILE"
         return 1
     fi
 }
@@ -48,15 +48,16 @@ processar_mes() {
 
     echo "Processando mês: $ano/$mes..." | tee -a "$LOG_FILE"
 
-    for cnpj in $(ls "$mes_path"); do
-        local cnpj_path="$mes_path/$cnpj"
-        local zip_file="/tmp/${ano}_${mes}_${cnpj}.zip"
+    for loja in "$mes_path"/*; do
+        if [ -d "$loja" ]; then
+            local loja_name=$(basename "$loja")
+            local zip_file="/tmp/${ano}_${mes}_${loja_name}.zip"
 
-        if [ -d "$cnpj_path" ]; then
-            compactar "$cnpj_path" "$zip_file"
+            compactar "$loja" "$zip_file"
         fi
     done
 
+    # Envia todos os arquivos compactados do mês
     for zip_file in /tmp/${ano}_${mes}_*.zip; do
         if [ -f "$zip_file" ]; then
             enviar_para_google_drive "$zip_file" "$remote_dest"
