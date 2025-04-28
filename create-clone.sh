@@ -1,9 +1,44 @@
 #!/bin/bash
 
-BASE_DIR="/var/www/html/xml"
+if [ -z "$1" ]; then
+    echo "Uso: $0 <BASE_DIR>"
+    exit 1
+fi
+
+BASE_DIR="$1"
 RCLONE_REMOTE="gdrive-sa"
 REMOTE_PATH="xml/woo_pdv"
 LOG_FILE="/var/log/rclone-woo-pdv.log"
+
+compactar() {
+    local cnpj_path=$1
+    local zip_file=$2
+
+    echo "Compactando o conteúdo de $cnpj_path para $zip_file..." | tee -a "$LOG_FILE"
+
+    if [ -d "$cnpj_path" ]; then
+        if [ "$(ls -A "$cnpj_path")" ]; then
+            (cd "$cnpj_path" && zip -r "$zip_file" .) >> "$LOG_FILE" 2>&1
+        else
+            echo "Diretório $cnpj_path está vazio. Nada para compactar." | tee -a "$LOG_FILE"
+            return 1
+        fi
+    else
+        echo "Diretório $cnpj_path não encontrado." | tee -a "$LOG_FILE"
+        return 1
+    fi
+}
+
+enviar_para_google_drive() {
+    local zip_file=$1
+    local remote_dest=$2
+
+    echo "Enviando $zip_file para $remote_dest no Google Drive..." | tee -a "$LOG_FILE"
+    rclone copy "$zip_file" "$remote_dest" --drive-server-side-across-configs -v >> "$LOG_FILE" 2>&1
+
+    echo "Removendo arquivo local $zip_file..." | tee -a "$LOG_FILE"
+    rm -f "$zip_file"
+}
 
 compactar_e_enviar() {
     local ano=$1
@@ -14,20 +49,20 @@ compactar_e_enviar() {
     local remote_dest="$RCLONE_REMOTE:$REMOTE_PATH/$ano/$mes"
 
     if [ -d "$cnpj_path" ]; then
-        echo "Compactando $cnpj_path..." | tee -a "$LOG_FILE"
-        zip -r "$zip_file" "$cnpj_path" >> "$LOG_FILE" 2>&1
+        compactar "$cnpj_path" "$zip_file"
+        
+        if [ -f "$zip_file" ]; then
+            echo "Arquivo compactado gerado com sucesso: $zip_file" | tee -a "$LOG_FILE"
+        else
+            echo "Falha ao gerar o arquivo compactado: $zip_file" | tee -a "$LOG_FILE"
+        fi
 
-        echo "Enviando $zip_file para $remote_dest no Google Drive..." | tee -a "$LOG_FILE"
-        rclone copy "$zip_file" "$remote_dest" --drive-server-side-across-configs -v >> "$LOG_FILE" 2>&1
-
-        echo "Removendo arquivo local $zip_file..." | tee -a "$LOG_FILE"
-        rm -f "$zip_file"
+        enviar_para_google_drive "$zip_file" "$remote_dest"
     else
         echo "Pasta $cnpj_path não encontrada, pulando..." | tee -a "$LOG_FILE"
     fi
 }
 
-# Itera sobre os anos, meses e CNPJs
 for ano in $(ls "$BASE_DIR"); do
     if [ -d "$BASE_DIR/$ano" ]; then
         for mes in $(ls "$BASE_DIR/$ano"); do
