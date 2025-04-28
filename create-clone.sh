@@ -1,13 +1,13 @@
 #!/bin/bash
 
-if [ -z "$1" ]; then
-    echo "Uso: $0 <BASE_DIR>"
+if [ -z "$1" ] || [ -z "$2" ]; then
+    echo "Uso: $0 <BASE_DIR> <REMOTE_PATH>"
     exit 1
 fi
 
 BASE_DIR="$1"
+REMOTE_PATH="$2"
 RCLONE_REMOTE="gdrive-sa"
-REMOTE_PATH="xml/woo_pdv"
 LOG_FILE="/var/log/rclone-woo-pdv.log"
 
 compactar() {
