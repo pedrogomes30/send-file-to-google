@@ -1,12 +1,12 @@
 #!/bin/bash
 
-if [ -z "$1" ]; then
-    echo "Uso: $0 <last-month>"
+if [ "$#" -ne 3 ]; then
+    echo "Uso: $0 <base-dir> <remote-path> <last-month>"
     exit 1
 fi
 
-BASE_DIR="/var/www/html/xml"
-REMOTE_PATH="xml/woo_pdv"
+BASE_DIR="$1"
+REMOTE_PATH="$2"
 RCLONE_REMOTE="gdrive-sa"
 LOG_FILE="/var/log/rclone-woo-pdv.log"
 
@@ -75,8 +75,8 @@ processar_mes() {
     done
 }
 
-# Verifica se o parâmetro é "last-month"
-if [ "$1" == "last-month" ]; then
+# Verifica se o terceiro parâmetro é "last-month"
+if [ "$3" == "last-month" ]; then
     read last_year last_month <<< $(get_last_month)
 
     # Processa apenas o mês anterior
@@ -86,7 +86,7 @@ if [ "$1" == "last-month" ]; then
         echo "Pasta $BASE_DIR/$last_year/$last_month não encontrada, encerrando." | tee -a "$LOG_FILE"
     fi
 else
-    echo "Uso: $0 last-month" | tee -a "$LOG_FILE"
+    echo "Uso: $0 <base-dir> <remote-path> <last-month>" | tee -a "$LOG_FILE"
     exit 1
 fi
 
