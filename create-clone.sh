@@ -1,14 +1,30 @@
 #!/bin/bash
 
-if [ -z "$1" ] || [ -z "$2" ]; then
-    echo "Uso: $0 <BASE_DIR> <REMOTE_PATH>"
+if [ -z "$1" ]; then
+    echo "Uso: $0 <last-month>"
     exit 1
 fi
 
-BASE_DIR="$1"
-REMOTE_PATH="$2"
+BASE_DIR="/var/www/html/xml"
+REMOTE_PATH="xml/woo_pdv"
 RCLONE_REMOTE="gdrive-sa"
 LOG_FILE="/var/log/rclone-woo-pdv.log"
+
+# Função para calcular o ano e mês anterior
+get_last_month() {
+    local current_year=$(date +%Y)
+    local current_month=$(date +%m)
+
+    if [ "$current_month" -eq 1 ]; then
+        last_month=12
+        last_year=$((current_year - 1))
+    else
+        last_month=$((current_month - 1))
+        last_year=$current_year
+    fi
+
+    printf "%04d %02d\n" "$last_year" "$last_month"
+}
 
 compactar() {
     local loja_path=$1
@@ -54,25 +70,24 @@ processar_mes() {
             local zip_file="/tmp/${ano}_${mes}_${loja_name}.zip"
 
             compactar "$loja" "$zip_file"
-        fi
-    done
-
-    # Envia todos os arquivos compactados do mês
-    for zip_file in /tmp/${ano}_${mes}_*.zip; do
-        if [ -f "$zip_file" ]; then
             enviar_para_google_drive "$zip_file" "$remote_dest"
         fi
     done
 }
 
-for ano in $(ls "$BASE_DIR"); do
-    if [ -d "$BASE_DIR/$ano" ]; then
-        for mes in $(ls "$BASE_DIR/$ano"); do
-            if [ -d "$BASE_DIR/$ano/$mes" ]; then
-                processar_mes "$ano" "$mes"
-            fi
-        done
+# Verifica se o parâmetro é "last-month"
+if [ "$1" == "last-month" ]; then
+    read last_year last_month <<< $(get_last_month)
+
+    # Processa apenas o mês anterior
+    if [ -d "$BASE_DIR/$last_year/$last_month" ]; then
+        processar_mes "$last_year" "$last_month"
+    else
+        echo "Pasta $BASE_DIR/$last_year/$last_month não encontrada, encerrando." | tee -a "$LOG_FILE"
     fi
-done
+else
+    echo "Uso: $0 last-month" | tee -a "$LOG_FILE"
+    exit 1
+fi
 
 echo "Processo concluído!" | tee -a "$LOG_FILE"
